@@ -1,8 +1,41 @@
 import pandas as pd
 import numpy as np
 import Log as log
-from sklearn.preprocessing import MinMaxScaler
 pd.options.mode.chained_assignment = None  # default='warn'
+
+# scales all rows from a dataframe to be inside the range of 0 to 1
+class Scaler:
+
+    # creates a minmax list for each column of the dataframe
+    def __init__(self, dataframe :pd.DataFrame):
+        self.minmax = [] # Column number : {"max" : Max in column, "min" : Min in column}
+        i = 0
+        for col in dataframe.columns:
+            self.minmax.append({})
+            self.minmax[i]["max"] = max(dataframe[col].values)
+            self.minmax[i]["min"] = min(dataframe[col].values)
+            i += 1
+
+    # in place transformation of given data, scales according to the minmax values
+    def transform(self, data):
+        if isinstance(data, pd.DataFrame):
+            data = data.astype(np.float32)
+            i = 0
+            for col in data.columns:
+                minn = self.minmax[i]["min"]
+                maxn = self.minmax[i]["max"]
+                if maxn - minn != 0:
+                    data[col] = (data[col] - minn) / (maxn - minn)
+                i += 1
+        else:
+            for i in range(len(data)):
+                for j in range(len(data[i])):
+                    num = data[i][j]
+                    minn = self.minmax[j]["min"]
+                    maxn = self.minmax[j]["max"]
+                    if maxn - minn != 0:
+                        data[i][j] = (num - minn) / (maxn - minn)
+        return data
 
 # the base class for reading a csv file, provides a simple platform for getting results and can be furthered modified in the future
 class Dataset:
@@ -100,11 +133,9 @@ class DatasetHandler:
                     self.trainingDF.csv[column][i] = currentConvert[self.trainingDF.csv[column][i]]
 
     # scales all rows inside the training dataframe to be inside the range of 0 to 1, and saves the scaler for future use
-    # NOTE: currently using the MinMaxScaler provided by the sklearn toolkit, and will probably be exchanged in the future for a custom built scaler
     def __prepareScaler(self):
-        self.scaler = MinMaxScaler(feature_range=(0,1))
-        self.scaler.fit(self.trainingDF.csv)
-        self.trainingDF.csv = pd.DataFrame(self.scaler.transform(self.trainingDF.csv), columns=self.trainingDF.csv.columns)
+        self.scaler = Scaler(self.trainingDF.csv)
+        self.trainingDF.csv = self.scaler.transform(self.trainingDF.csv)
 
     # returns a prepared for ML used copy of the data received, by removing unneeded values, scaling the rest, and converting string columns to numeric ones
     def prepareData(self, data: list) -> list:
