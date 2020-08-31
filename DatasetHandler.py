@@ -1,8 +1,10 @@
 import pandas as pd
 import numpy as np
 import Log as log
-pd.options.mode.chained_assignment = None  # default='warn'
+from matplotlib import pyplot as plt
 
+plt.rcParams['agg.path.chunksize'] = 10000
+pd.options.mode.chained_assignment = None  # default='warn'
 # scales all rows from a dataframe to be inside the range of 0 to 1
 class Scaler:
 
@@ -44,18 +46,42 @@ class Dataset:
     # dataTypes - a list with all the data types of each column inside the dataframe, used for better performance when reading large files (~1M rows)
     # numrows - number of rows that will be read from the file provided
     # skiprows - a list with all the number of rows that will not be included in the dataframe
-    def __init__(self, df :pd.DataFrame = None, filename: str = None, resultsColumn: str = "", dataTypes :dict = None, numrows :int=None, skiprows=None):
+    def __init__(self, df :pd.DataFrame = None, filename: str = None, resultsColumn: str = "", dataTypes :dict = None, numrows :int=None, skiprows=None
+                 , droppedColumns: list = []):
         if filename is None:
             self.csv = df
         else:
             self.csv: pd.DataFrame = pd.read_csv(filename, dtype=dataTypes,
-                                             nrows=numrows, skiprows=skiprows)
-        self.results = self.csv[resultsColumn].tolist()
-        self.csv.drop(resultsColumn, 1, inplace=True)
+                                             nrows=numrows, skiprows=skiprows, usecols = lambda column : column not in droppedColumns)
+        if resultsColumn != "":
+            self.results = self.csv[resultsColumn].tolist()
+            self.csv.drop(resultsColumn, 1, inplace=True)
+
+    def __iter__(self):
+        return iter(self.csv.values.tolist())
 
     def getResult(self, i):
         return self.results[i]
-    
+
+class PartialDatasetHandler:
+    def __init__(self, droppedColumns :dict, textConverter :dict, scaler :Scaler, columms :list):
+        self.droppedColumns = droppedColumns
+        self.textConverter = textConverter
+        self.scaler = scaler
+        self.columns = columms
+
+    def prepareData(self, data: list) -> list:
+        newdata = data.copy()
+        for index in sorted(self.droppedColumns.values(), reverse=True):
+            del newdata[index]
+        for column in self.textConverter:
+            columnloc = self.columns.index(column)
+            if newdata[columnloc] not in self.textConverter[column].keys():
+                self.textConverter[column][newdata[columnloc]] = max(self.textConverter[column].values()) + 1
+            newdata[columnloc] = self.textConverter[column][newdata[columnloc]]
+        newdata = self.scaler.transform([newdata])[0]
+        return newdata
+
 # Handles everything that has to do with csv files, and train-test dataframes
 class DatasetHandler:
 
@@ -137,6 +163,9 @@ class DatasetHandler:
         self.scaler = Scaler(self.trainingDF.csv)
         self.trainingDF.csv = self.scaler.transform(self.trainingDF.csv)
 
+    def partial(self) -> PartialDatasetHandler:
+        return PartialDatasetHandler(self.droppedColumns, self.textConverter, self.scaler, self.columns)
+
     # returns a prepared for ML used copy of the data received, by removing unneeded values, scaling the rest, and converting string columns to numeric ones
     def prepareData(self, data: list) -> list:
         newdata = data.copy()
@@ -175,4 +204,36 @@ class DatasetHandler:
     # returns the training dataframe in a list form, should only be used by the system itself
     def getTestingData(self):
         return self.testingDF.csv.values.tolist()
+
+    def getColumnAnalysis(self):
+        allcols = {} # col name : [list of values, list of normals or not]
+        for col in self.trainingDF.csv.columns:
+            allcols[col] = [[],[]]
+        for i, row in self.trainingDF.csv.iterrows():
+            if self.isNormal(i):
+                nor = 1
+            else:
+                nor = 0
+            for col in allcols.keys():
+                allcols[col][0].append(row[col])
+                allcols[col][1].append(nor)
+            if i % 10000 == 0:
+                print(i)
+        i = 0
+        for col in allcols.keys():
+            allcols[col][0], allcols[col][1] = zip(*sorted(zip(allcols[col][0],allcols[col][1])))
+            chunksize = int(len(allcols[col][0]) / 50)
+            AON = [0] * 50 # amount of normals
+            for j in range(len(allcols[col][0])):
+                AON[int(j / chunksize)] += allcols[col][1][j]
+            y = [0.0] * 50
+            for j in range(len(AON)):
+                y[j] = AON[j] / chunksize
+            plt.title(col)
+            plt.plot(range(50), y, '.') #plt.plot(allcols[col][0], allcols[col][1], ',')
+            plt.xlabel('Values')
+            plt.ylabel('Is Normal')
+            plt.savefig("columns/" + col.replace("/", "") + '.png')
+            print(f"{i}")
+            i += 1
 

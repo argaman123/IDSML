@@ -1,5 +1,5 @@
 from sklearn.cluster import KMeans
-from DatasetHandler import DatasetHandler
+from DatasetHandler import *
 from matplotlib import pyplot as plt
 import Log as log
 
@@ -38,6 +38,23 @@ class TempML(ML):
 
     def fit(self, data):
         self.km.fit(data)
+
+class PartialMLWrapper:
+    def __init__(self, ml :ML, normalClusters :list, pdatasethandler :PartialDatasetHandler):
+        self.ml = ml
+        self.normalClusters = normalClusters
+        self.dataHandler = pdatasethandler
+
+    def predict(self, data, convert=True):
+        datan = data
+        if convert:
+            datan = self.dataHandler.prepareData(datan)
+        return self.ml.predict(datan)
+
+    # a simpler version of the predict function, which returns if a new data is benign or not
+    def isNormal(self, data: list, convert=True):
+        return self.predict(data, convert) in self.normalClusters
+
 
 # Provides all the data needed to the algorithm and handles the results- by figuring out the benign clusters, and calculating performance
 class TempMLWrapper:
@@ -128,6 +145,9 @@ class TempMLWrapper:
             except IndexError:
                 print(f"i: {i}, testing: {testing}")
 
+    def partial(self):
+        return PartialMLWrapper(self.ml, self.normalClusters, self.dataHandler.partial())
+
     # prepares new data to fit the format of the currently fitted dataframe, and return the prediction of it
     # the preparation phase can be skipped by changing convert to False
     def predict(self, data, convert=True):
@@ -159,15 +179,18 @@ class TempMLWrapper:
         print(f"Success Rate = {self.correctAmount[0] / lentrain} {self.correctAmount[0]} / {lentrain}")
         print(f"False Positives = {self.FP[0] / div} {self.FP[0]} / {div}")
         print(f"False Negatives = {self.FN[0] / div} {self.FN[0]} / {div}")
-        print(f"----------- Testing: N:{sum(self.normalAmount[1])},A:{sum(self.attackAmount[1])}")
-        print(f"Groups: ", end="")
-        for i in range(self.ml.getClustersAmount()):
-            print(f"Group {i}: N:{self.normalAmount[1][i]},A:{self.attackAmount[1][i]} | ", end="")
-        print("")
-        lentest = len(self.dataHandler.getTestingData())
-        div = (lentest - self.correctAmount[1])
-        if div == 0:
-            div = -1
-        print(f"Success Rate = {self.correctAmount[1] / lentest} {self.correctAmount[1]} / {lentest}")
-        print(f"False Positives = {self.FP[1] / div} {self.FP[1]} / {div}")
-        print(f"False Negatives = {self.FN[1] / div} {self.FN[1]} / {div}")
+        if len(self.dataHandler.getTestingData()) != 0:
+            print(f"----------- Testing: N:{sum(self.normalAmount[1])},A:{sum(self.attackAmount[1])}")
+            print(f"Groups: ", end="")
+            for i in range(self.ml.getClustersAmount()):
+                print(f"Group {i}: N:{self.normalAmount[1][i]},A:{self.attackAmount[1][i]} | ", end="")
+            print("")
+            lentest = len(self.dataHandler.getTestingData())
+            div = (lentest - self.correctAmount[1])
+            if div == 0:
+                div = -1
+            print(f"Success Rate = {self.correctAmount[1] / lentest} {self.correctAmount[1]} / {lentest}")
+            print(f"False Positives = {self.FP[1] / div} {self.FP[1]} / {div}")
+            print(f"False Negatives = {self.FN[1] / div} {self.FN[1]} / {div}")
+
+
