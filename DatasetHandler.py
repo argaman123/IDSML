@@ -63,6 +63,7 @@ class Dataset:
     def getResult(self, i):
         return self.results[i]
 
+# A compact version of the DatasetHandler, which only includes the prepareData function and it's prerequisites
 class PartialDatasetHandler:
     def __init__(self, droppedColumns :dict, textConverter :dict, scaler :Scaler, columms :list):
         self.droppedColumns = droppedColumns
@@ -222,15 +223,15 @@ class DatasetHandler:
         i = 0
         for col in allcols.keys():
             allcols[col][0], allcols[col][1] = zip(*sorted(zip(allcols[col][0],allcols[col][1])))
-            chunksize = int(len(allcols[col][0]) / 50)
-            AON = [0] * 50 # amount of normals
+            chunksize = int(len(allcols[col][0]) / 100)
+            AON = [0] * 100 # amount of normals
             for j in range(len(allcols[col][0])):
                 AON[int(j / chunksize)] += allcols[col][1][j]
-            y = [0.0] * 50
+            y = [0.0] * 100
             for j in range(len(AON)):
                 y[j] = AON[j] / chunksize
             plt.title(col)
-            plt.plot(range(50), y, '.') #plt.plot(allcols[col][0], allcols[col][1], ',')
+            plt.plot(range(100), y, '.') #plt.plot(allcols[col][0], allcols[col][1], ',')
             plt.xlabel('Values')
             plt.ylabel('Is Normal')
             plt.savefig("columns/" + col.replace("/", "") + '.png')

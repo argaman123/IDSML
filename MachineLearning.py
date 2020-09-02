@@ -23,6 +23,71 @@ class ML:
     def getClustersAmount(self):
         return self.numClusters
 
+# Rom's algorithm
+class K_Means(ML):
+
+    def __init__(self, k, tol=0.001, max_iter=500, v=-1):
+        super().__init__(k)
+        self.k = k
+        self.tol = tol
+        self.max_iter = max_iter
+        self.inertia_values = v
+
+    def fit(self,data1):
+        data = np.array(data1)
+        self.centroids = {}
+#initialization of centroids
+        for i in range(self.k):
+                self.centroids[i] = data[i]
+#optimization process
+        for i in range(self.max_iter):
+#we are clearing the classifications dictionary for every iteration because for every iteration the centroids move
+            self.classifications = {} #contains the centroids and the classifications
+
+            for j in range(self.k):
+                    self.classifications[j] = [] #keys=centroids values=feature sets
+
+            for featureset in data:
+                distances = [np.linalg.norm(featureset-self.centroids[centroid]) for centroid in self.centroids] #creating a list with the distances from every centroid
+                classification = distances.index(min(distances)) #choosing the closest centroid's index for the classification
+                self.classifications[classification].append(featureset)
+#for comparison to check how much the centroids have changed
+            prev_centroids = dict(self.centroids)
+
+            for classification in self.classifications:
+                #finds the mean for all the feature sets(finds better centroids)
+                self.centroids[classification] = np.average(self.classifications[classification],axis=0)
+
+#checking how much the centroids moved and seeing if their movement is less than the tolerance then their place is not optimized
+            optimized = True
+            for c in self.centroids:
+                    original_centroid = prev_centroids[c]
+                    current_centroid = self.centroids[c]
+                    if abs(np.linalg.norm(current_centroid-original_centroid)) > self.tol:
+                            #print(np.sum((current_centroid-original_centroid)/original_centroid*100.0))
+                            optimized = False
+#if optimized equals true it means that the centroid moved very little and we can stop optimizing their placement
+            if optimized:
+                g =self.inertia()
+                #print(self.inertia_values)
+                self.inertia_values = g
+                #print(self.inertia_values)
+                print(i)
+                break
+
+    def predict(self,data1): # places the data in their classification by checking the distance to each centroid
+        data = np.array(data1)
+        distances = [np.linalg.norm(data-self.centroids[centroid]) for centroid in self.centroids]
+        classification = distances.index(min(distances))
+        return classification
+
+    def inertia(self):
+        cluster_sum_of_squares_points_to_clusters = 0
+        for centroid, cluster_points in self.centroids.items():
+            for cluster_point in cluster_points:
+                distance = np.linalg.norm(cluster_point - centroid)
+                cluster_sum_of_squares_points_to_clusters += distance**2
+        return cluster_sum_of_squares_points_to_clusters
 
 # A simple, temporary implementation of the ML class by using the KMeans algorithm provided by sklearn toolkit
 class TempML(ML):
@@ -39,6 +104,7 @@ class TempML(ML):
     def fit(self, data):
         self.km.fit(data)
 
+# A compact version of the MLWrapper, which only includes the predict function and it's prerequisites
 class PartialMLWrapper:
     def __init__(self, ml :ML, normalClusters :list, pdatasethandler :PartialDatasetHandler):
         self.ml = ml
@@ -55,9 +121,8 @@ class PartialMLWrapper:
     def isNormal(self, data: list, convert=True):
         return self.predict(data, convert) in self.normalClusters
 
-
 # Provides all the data needed to the algorithm and handles the results- by figuring out the benign clusters, and calculating performance
-class TempMLWrapper:
+class MLWrapper:
 
     # Receives the datahandler of the the train-test datasets, and the number of clusters that are needed to built by the ML
     # if the number of clusters is not provided, the class will automatically try different numbers (from 2 to 40) and will display a graph with the results in the form of the elbow method
@@ -145,6 +210,7 @@ class TempMLWrapper:
             except IndexError:
                 print(f"i: {i}, testing: {testing}")
 
+    # returns a copy of the current class in a PartialMLWrapper format
     def partial(self):
         return PartialMLWrapper(self.ml, self.normalClusters, self.dataHandler.partial())
 
