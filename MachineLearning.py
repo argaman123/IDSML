@@ -2,6 +2,7 @@ from sklearn.cluster import KMeans
 from DatasetHandler import *
 from matplotlib import pyplot as plt
 import Log as log
+import time
 
 # the base class for the Machine Learning algorithm
 class ML:
@@ -134,6 +135,7 @@ class MLWrapper:
         else:
             self.ml = TempML(numClusters)
         log.show("mlwrapper", "ml prepared")
+        self.predictions = []
         self.normalClusters = []
         self.normalAmount = [[0] * self.ml.getClustersAmount(),[0] * self.ml.getClustersAmount()]
         self.attackAmount = [[0] * self.ml.getClustersAmount(),[0] * self.ml.getClustersAmount()]
@@ -148,7 +150,7 @@ class MLWrapper:
         trainDF = self.dataHandler.getTrainingData()
         allc = []
         for i in range(2, 40):
-            ml = TempML(i)
+            ml = K_Means(i)
             ml.fit(trainDF)
             allc.append(ml.inertia()) # needs to be added
             print(f"done: {i}")
@@ -156,14 +158,18 @@ class MLWrapper:
         plt.xlabel('Number of clusters')
         plt.ylabel('WCSS')
         plt.show()
-        self.ml = TempML(int(input("Number of clusters: ")))
+        self.ml = K_Means(int(input("Number of clusters: ")))
 
     # trains the ML and calculates the overall performance and row types statistics
     def __setup(self):
+        start_time = time.time()
         self.ml.fit(self.dataHandler.getTrainingData())
         log.show("mlwrapper", "fitted")
+        print("--- %s seconds ---" % (time.time() - start_time))
+        start_time = time.time()
         self.__calcStatistics()
         log.show("mlwrapper", "calculated statistics")
+        print("--- %s seconds ---" % (time.time() - start_time))
         self.__calcNormal()
         log.show("mlwrapper", "calculated normal groups")
         self.__calcPerformance(testing=False)
@@ -177,6 +183,7 @@ class MLWrapper:
         data = self.dataHandler.getData(testing)
         for i in range(len(data)):
             prediction = self.predict(data[i], convert=testing)
+            self.predictions.append(prediction)
             if self.dataHandler.isNormal(i, testing):
                 self.normalAmount[loc][prediction] += 1
             else:
@@ -197,7 +204,10 @@ class MLWrapper:
         data = self.dataHandler.getData(testing)
         for i in range(len(data)):
             try:
-                prediction = self.isNormal(data[i], testing)
+                if not testing:
+                    prediction = self.predictions[i] in self.normalClusters
+                else:
+                    prediction = self.isNormal(data[i], testing)
                 fact = self.dataHandler.isNormal(i, testing)
                 if (prediction and fact) or (
                         not prediction and not fact):
