@@ -27,7 +27,7 @@ class ML:
 # Rom's algorithm
 class K_Means(ML):
 
-    def __init__(self, k, tol=0.001, max_iter=500, v=-1):
+    def __init__(self, k, tol=0.01, max_iter=500, v=-1):
         super().__init__(k)
         self.k = k
         self.tol = tol
