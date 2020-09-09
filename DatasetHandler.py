@@ -17,6 +17,15 @@ class Scaler:
             self.minmax[i]["max"] = max(dataframe[col].values)
             self.minmax[i]["min"] = min(dataframe[col].values)
             i += 1
+        for i in range(len(self.minmax)):
+            print(f"{dataframe.columns[i]} [max:{self.minmax[i]['max']}]")
+        data = dataframe
+        """plt.plot(data['Pkt Size Avg'].values.tolist(), data['Pkt Len Var'].values.tolist(), '.')
+        plt.xlabel('Avarage packet size')
+        plt.ylabel('Minimum time between two packets')
+        plt.xlim(right=702768, left=0)
+        plt.ylim(top=702768, bottom=0)
+        plt.show()"""
 
     # in place transformation of given data, scales according to the minmax values
     def transform(self, data):
@@ -37,6 +46,12 @@ class Scaler:
                     maxn = self.minmax[j]["max"]
                     if maxn - minn != 0:
                         data[i][j] = (num - minn) / (maxn - minn)
+        """ plt.plot(data['Pkt Size Avg'].values.tolist(), data['Pkt Len Var'].values.tolist(), '.')
+        plt.xlabel('Avarage packet size')
+        plt.ylabel('Minimum time between two packets')
+        plt.xlim(right=1, left=0)
+        plt.ylim(top=1, bottom=0)
+        plt.show()"""
         return data
 
 # the base class for reading a csv file, provides a simple platform for getting results and can be furthered modified in the future
@@ -47,14 +62,23 @@ class Dataset:
     # numrows - number of rows that will be read from the file provided
     # skiprows - a list with all the number of rows that will not be included in the dataframe
     def __init__(self, df :pd.DataFrame = None, filename: str = None, resultsColumn: str = "", dataTypes :dict = None, numrows :int=None, skiprows=None
-                 , droppedColumns: list = []):
+                 ,droppedColumns: list = [], combinewith=None):
         if filename is None:
             self.csv = df
         else:
             self.csv: pd.DataFrame = pd.read_csv(filename, dtype=dataTypes,
-                                             nrows=numrows, skiprows=skiprows, usecols = lambda column : column not in droppedColumns)
+                                             nrows=numrows, skiprows=skiprows, usecols = lambda column : (column not in droppedColumns))
+        if combinewith is not None:
+            self.csv = pd.concat([self.csv, combinewith.csv])
         if resultsColumn != "":
             self.results = self.csv[resultsColumn].tolist()
+            res = {}
+            for val in set(self.results):
+                res[val] = 0
+                print(val)
+            for val in self.results:
+                res[val] += 1
+            print(res)
             self.csv.drop(resultsColumn, 1, inplace=True)
 
     def __iter__(self):
@@ -96,19 +120,29 @@ class DatasetHandler:
     # numrows - number of rows that will be read from the file provided
     # skiprows - a list with all the number of rows that will not be included in the dataframe
     def __init__(self, filename: str, normalText :str, resultsColumn: str = "", testingDS :Dataset = None, trainingDS :Dataset = None, droppedColumns: list = [],
-                 trainAmount = 1, dataTypes :dict = None, numrows :int=None, skiprows=None):
+                 trainAmount = 1, dataTypes :dict = None, numrows :int=None, skiprows=None, saveattack=False, colFilter=[]):
         if trainingDS is None or testingDS is None:
             self.csv: pd.DataFrame = pd.read_csv(filename, dtype=dataTypes,
                                              nrows=numrows, skiprows=skiprows)
         else:
             self.csv :pd.DataFrame = pd.read_csv(filename, dtype=dataTypes, nrows=2)
         log.show("datahandler", "csv created")
+
+        if saveattack:
+            attackcsv = self.csv[self.csv["Label"] != normalText]
+            print(len(attackcsv))
+            resfile = "attack-"+filename
+            attackcsv.to_csv(resfile, index=False)
+
         self.normalText = normalText
         self.resultsColumn = resultsColumn
         self.droppedColumns = {} # Column name: Column index
         self.columns = self.csv.columns.tolist()
         for col in droppedColumns:
             self.droppedColumns[col] = self.columns.index(col)
+        for column in self.columns:
+            if any(x in column for x in colFilter):
+                self.droppedColumns[column] = self.columns.index(column)
         self.testingPrefix = int(round(len(self.csv) * trainAmount))
         self.trainingDF :Dataset = None
         self.testingDF :Dataset = None
@@ -135,13 +169,16 @@ class DatasetHandler:
     # shuffles the whole dataframe, and splits it between the testing and traing dataframes
     def __trainTestSplit(self):
         if self.testingDF is None:
-            self.csv :pd.DataFrame = self.csv.sample(frac=1).reset_index(drop=True)
-            if self.trainingDF is None:
-                self.trainingDF = Dataset(df=self.csv.iloc[:self.testingPrefix, :], resultsColumn=self.resultsColumn)
-            self.testingDF = Dataset(df=self.csv.iloc[self.testingPrefix:, :], resultsColumn=self.resultsColumn)
+            if self.testingPrefix == len(self.csv):
+                self.trainingDF = Dataset(df=self.csv, resultsColumn=self.resultsColumn)
+            else:
+                self.csv :pd.DataFrame = self.csv.sample(frac=1).reset_index(drop=True)
+                if self.trainingDF is None:
+                    self.trainingDF = Dataset(df=self.csv.iloc[:self.testingPrefix, :], resultsColumn=self.resultsColumn)
+                self.testingDF = Dataset(df=self.csv.iloc[self.testingPrefix:, :], resultsColumn=self.resultsColumn)
         else:
             if self.trainingDF is None:
-                self.trainingDF = Dataset(self.csv, resultsColumn=self.resultsColumn)
+                self.trainingDF = Dataset(df=self.csv, resultsColumn=self.resultsColumn)
         for col in self.droppedColumns.keys():
             self.trainingDF.csv.drop(col, 1, inplace=True)
 

@@ -27,7 +27,7 @@ class ML:
 # Rom's algorithm
 class K_Means(ML):
 
-    def __init__(self, k, tol=0.01, max_iter=500, v=-1):
+    def __init__(self, k, tol=0.001, max_iter=500, v=-1):
         super().__init__(k)
         self.k = k
         self.tol = tol
@@ -36,10 +36,10 @@ class K_Means(ML):
 
     def fit(self,data1):
         data = np.array(data1)
-        self.centroids = self.initialize(data, self.k)
+        self.centroids = {}
 #initialization of centroids
-        #for i in range(self.k):
-                #self.centroids[i] = data[i]
+        for i in range(self.k):
+                self.centroids[i] = data[i]
 #optimization process
         for i in range(self.max_iter):
 #we are clearing the classifications dictionary for every iteration because for every iteration the centroids move
@@ -69,9 +69,9 @@ class K_Means(ML):
                             optimized = False
 #if optimized equals true it means that the centroid moved very little and we can stop optimizing their placement
             if optimized:
-                #g =self.inertia()
+                g =self.inertia()
                 #print(self.inertia_values)
-                #self.inertia_values = g
+                self.inertia_values = g
                 #print(self.inertia_values)
                 print(i)
                 break
@@ -84,36 +84,12 @@ class K_Means(ML):
 
     def inertia(self):
         cluster_sum_of_squares_points_to_clusters = 0
+        print(self.centroids.items())
         for centroid, cluster_points in self.centroids.items():
             for cluster_point in cluster_points:
                 distance = np.linalg.norm(cluster_point - centroid)
                 cluster_sum_of_squares_points_to_clusters += distance**2
         return cluster_sum_of_squares_points_to_clusters
-    
-    def initialize(self, X, K):
-        """
-        Create cluster centroids using the k-means++ algorithm.
-            X : numpy array
-                The dataset.
-        """
-		C = {}
-		C[0] = X[0]
-		z = 1
-		for k in range(1, K):
-			#calculates the distance squared from an element in the dataset to the existing centroids
-			D2 = scipy.array([min([scipy.inner(c-x,c-x) for c in C]) for x in X])
-			#calculates the probability to get an element in the right distance from the centroids
-			probs = D2/D2.sum()
-			cumprobs = probs.cumsum()
-			#finds an element randomly in the right distance
-			r = scipy.rand()
-			for j,p in enumerate(cumprobs):
-				if r < p:
-					i = j
-					break
-			C[z] = X[i]
-			z += 1
-		return C
 
 # A simple, temporary implementation of the ML class by using the KMeans algorithm provided by sklearn toolkit
 class TempML(ML):
@@ -263,8 +239,16 @@ class MLWrapper:
 
     # tests the ML using the testing dataframe, and calculates the performance
     def test(self):
+        print("testing the ml using random normal and attack rows")
         self.__calcStatistics(testing=True)
         self.__calcPerformance(testing=True)
+        lentest = len(self.dataHandler.getTestingData())
+        div = (lentest - self.correctAmount[1])
+        if div == 0:
+            div = -1
+        print(f"Success Rate = {self.correctAmount[1] / lentest} {self.correctAmount[1]} / {lentest}")
+        print(f"False Positives = {self.FP[1] / div} {self.FP[1]} / {div}")
+        print(f"False Negatives = {self.FN[1] / div} {self.FN[1]} / {div}")
 
     # prints the results of all performance tests that were executed on the ML
     def preview(self):
@@ -280,7 +264,7 @@ class MLWrapper:
         print(f"Success Rate = {self.correctAmount[0] / lentrain} {self.correctAmount[0]} / {lentrain}")
         print(f"False Positives = {self.FP[0] / div} {self.FP[0]} / {div}")
         print(f"False Negatives = {self.FN[0] / div} {self.FN[0]} / {div}")
-        if len(self.dataHandler.getTestingData()) != 0:
+        try:
             print(f"----------- Testing: N:{sum(self.normalAmount[1])},A:{sum(self.attackAmount[1])}")
             print(f"Groups: ", end="")
             for i in range(self.ml.getClustersAmount()):
@@ -293,5 +277,7 @@ class MLWrapper:
             print(f"Success Rate = {self.correctAmount[1] / lentest} {self.correctAmount[1]} / {lentest}")
             print(f"False Positives = {self.FP[1] / div} {self.FP[1]} / {div}")
             print(f"False Negatives = {self.FN[1] / div} {self.FN[1]} / {div}")
+        except AttributeError:
+            pass
 
 
