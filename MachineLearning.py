@@ -29,19 +29,17 @@ class ML:
 # Rom's algorithm
 class K_Means(ML):
 
-    def __init__(self, k, tol=0.001, max_iter=500, v=-1):
+    def __init__(self, k, tol=0.001, max_iter=500):
         super().__init__(k)
         self.k = k
         self.tol = tol
         self.max_iter = max_iter
-        self.inertia_values = v
+        self.inertia_value = 0
 
     def fit(self, data1):
         data = np.array(data1)
-        self.centroids = self.initialize(data, self.k)
-        # initialization of centroids
-        # for i in range(self.k):
-        # self.centroids[i] = data[i]
+        #initialization of centroids
+		self.centroids = self.initialize(data, self.k)
         # optimization process
         for i in range(self.max_iter):
             # we are clearing the classifications dictionary for every iteration because for every iteration the centroids move
@@ -60,8 +58,10 @@ class K_Means(ML):
             prev_centroids = dict(self.centroids)
 
             for classification in self.classifications:
-                # finds the mean for all the feature sets(finds better centroids)
-                self.centroids[classification] = np.average(self.classifications[classification], axis=0)
+				#finds the mean for all the feature sets(finds better centroids)
+				avg = np.average(self.classifications[classification],axis=0)
+				if not np.isnan(avg).any():
+					self.centroids[classification] = avg
 
             # checking how much the centroids moved and seeing if their movement is less than the tolerance then their place is not optimized
             optimized = True
@@ -69,16 +69,12 @@ class K_Means(ML):
                 original_centroid = prev_centroids[c]
                 current_centroid = self.centroids[c]
                 if abs(np.linalg.norm(current_centroid - original_centroid)) > self.tol:
-                    # print(np.sum((current_centroid-original_centroid)/original_centroid*100.0))
                     optimized = False
             # if optimized equals true it means that the centroid moved very little and we can stop optimizing their placement
             if optimized:
-                # g =self.inertia()
-                # print(self.inertia_values)
-                # self.inertia_values = g
-                # print(self.inertia_values)
-                print(i)
-                break
+                g =self.inertia()
+				self.inertia_value = g
+				break
 
     def predict(self, data1):  # places the data in their classification by checking the distance to each centroid
         data = np.array(data1)
@@ -87,37 +83,32 @@ class K_Means(ML):
         return classification
 
     def inertia(self):
-        cluster_sum_of_squares_points_to_clusters = 0
-        for centroid, cluster_points in self.centroids.items():
-            for cluster_point in cluster_points:
-                distance = np.linalg.norm(cluster_point - centroid)
-                cluster_sum_of_squares_points_to_clusters += distance ** 2
-        return cluster_sum_of_squares_points_to_clusters
+		cluster_sum_of_squares_points_to_clusters = 0
+		for k in range(self.k):
+			if not self.classifications[k]:
+				continue
+			cluster_sum_of_squares_points_to_clusters += np.sum((np.array(self.classifications[k]) - np.array(self.centroids[k]))**2)
+		return cluster_sum_of_squares_points_to_clusters
 
     def initialize(self, X, K):
-        """
-        Create cluster centroids using the k-means++ algorithm.
-            X : numpy array
-                The dataset.
-        """
-        C = {}
-        C[0] = X[0]
-        z = 1
-        for k in range(1, K):
-            # calculates the distance squared from an element in the dataset to the existing centroids
-            D2 = scipy.array([min([scipy.inner(c - x, c - x) for c in C]) for x in X])
-            # calculates the probability to get an element in the right distance from the centroids
-            probs = D2 / D2.sum()
-            cumprobs = probs.cumsum()
-            # finds an element randomly in the right distance
-            r = scipy.rand()
-            for j, p in enumerate(cumprobs):
-                if r < p:
-                    i = j
-                    break
-            C[z] = X[i]
-            z += 1
-        return C
+		C = {}
+		C[0] = X[0]
+		z = 1
+		for k in range(1, K):
+			#calculates the distance squared from an element in the dataset to the existing centroids
+			D2 = np.array([min([np.inner(c-x,c-x) for c in C]) for x in X])
+			#calculates the probability to get an element in the right distance from the centroids
+			probs = D2/D2.sum()
+			cumprobs = probs.cumsum()
+			#finds an element randomly in the right distance
+			r = np.random.rand()
+			for j,p in enumerate(cumprobs):
+				if r < p:
+					i = j
+					break
+			C[z] = X[i]
+			z += 1
+		return C
 
 
 # A simple, temporary implementation of the ML class by using the KMeans algorithm provided by sklearn toolkit
